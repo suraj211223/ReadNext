@@ -1,0 +1,25 @@
+{
+  "description": "Hand-labelled extraction pairs for CER. 'reference' is the ground-truth text; 'prediction' simulates extractor output. Replace predictions with live extractor runs to benchmark a real pipeline.",
+  "pairs": [
+    {
+      "id": "clean-pdf-1",
+      "reference": "The Transformer is a model architecture relying entirely on an attention mechanism.",
+      "prediction": "The Transformer is a model architecture relying entirely on an attention mechanism."
+    },
+    {
+      "id": "clean-pdf-2",
+      "reference": "BERT pre-trains deep bidirectional representations from unlabeled text.",
+      "prediction": "BERT pre-trains deep bidirectional representations from unlabeled text."
+    },
+    {
+      "id": "ocr-screenshot-1",
+      "reference": "Deep residual learning eases the training of very deep networks.",
+      "prediction": "Deep residual Iearning eases the training of very deep networks."
+    },
+    {
+      "id": "ocr-screenshot-2",
+      "reference": "Adam is a method for stochastic optimization of objective functions.",
+      "prediction": "Adam is a method for stochastic optimization of objective functions."
+    }
+  ]
+}

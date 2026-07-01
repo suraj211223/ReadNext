@@ -1,0 +1,140 @@
+# =============================================================================
+# Smart Reading Companion — Full Tech Stack Requirements
+# =============================================================================
+#
+# This file documents ALL packages required across the three service layers.
+# Install each section in its corresponding service directory.
+#
+# Service Layout:
+#   /processing  → Python / FastAPI node  (install this file here)
+#   /backend     → Node.js / Express      (see: npm packages section below)
+#   /frontend    → Svelte / Vite          (see: npm packages section below)
+#
+# =============================================================================
+
+
+# =============================================================================
+# PYTHON — FastAPI Processing Node  (/processing)
+# =============================================================================
+# Install with:  pip install -r requirements.txt
+# Requires:      Python 3.10+  |  Tesseract OCR 5.x installed on the system
+# =============================================================================
+
+# --- Web Framework -----------------------------------------------------------
+fastapi==0.111.0
+uvicorn[standard]==0.30.1          # ASGI server with websocket + reload support
+python-multipart==0.0.9            # Required for FastAPI file upload handling
+
+# --- PDF Text Extraction -----------------------------------------------------
+pdfplumber==0.11.0                 # Structured PDF text and table extraction
+pypdf==4.2.0                       # Fallback PDF reader and metadata extraction
+
+# --- OCR Engine (Image / Screen Capture Processing) --------------------------
+pytesseract==0.3.10                # Python wrapper for Tesseract OCR
+Pillow==10.3.0                     # Image loading and pre-processing for OCR
+pdf2image==1.17.0                  # Convert PDF pages to images for OCR fallback
+# NOTE: Tesseract binary must be installed separately:
+#   macOS:   brew install tesseract
+#   Ubuntu:  sudo apt install tesseract-ocr
+#   Windows: https://github.com/UB-Mannheim/tesseract/wiki
+
+# --- NLP Keyword Extraction --------------------------------------------------
+keybert==0.8.4                     # Transformer-based keyword/keyphrase extraction
+sentence-transformers==3.0.1       # Semantic embedding models used by KeyBERT
+# Default model: all-MiniLM-L6-v2 (fast, accurate, ~80MB)
+# High-precision alternative: all-mpnet-base-v2 (~420MB)
+
+# --- NLP Text Preprocessing --------------------------------------------------
+spacy==3.7.4                       # Tokenization, NER, stop-word filtering
+# After install, download the English model:
+#   python -m spacy download en_core_web_sm
+en-core-web-sm @ https://github.com/explosion/spacy-models/releases/download/en_core_web_sm-3.7.1/en_core_web_sm-3.7.1-py3-none-any.whl
+
+# --- HTTP Client (Internal S2AG proxy calls if routed through FastAPI) -------
+httpx==0.27.0                      # Async HTTP client for outbound API requests
+
+# --- Data Validation & Serialisation ----------------------------------------
+pydantic==2.7.3                    # Request/response schema validation (FastAPI native)
+pydantic-settings==2.3.4           # .env file loading for FastAPI settings
+
+# --- Utilities ---------------------------------------------------------------
+python-dotenv==1.0.1               # Load .env variables into the process environment
+numpy==1.26.4                      # Numerical operations (sentence-transformers dependency)
+torch==2.3.1                       # PyTorch backend for sentence-transformers
+# NOTE: For CPU-only environments use:
+#   pip install torch==2.3.1+cpu --index-url https://download.pytorch.org/whl/cpu
+
+
+# =============================================================================
+# NODE.JS — Express API Gateway  (/backend)
+# =============================================================================
+# Install with:  npm install
+# Requires:      Node.js 18+ LTS
+#
+# Add the following to /backend/package.json under "dependencies":
+# =============================================================================
+#
+# "dependencies": {
+#   "express": "^4.19.2",          // Core web framework
+#   "cors": "^2.8.5",              // Cross-origin resource sharing middleware
+#   "dotenv": "^16.4.5",           // .env variable loading
+#   "multer": "^1.4.5-lts.1",      // Multipart/form-data file upload handling
+#   "axios": "^1.7.2",             // HTTP client for forwarding to FastAPI + S2AG
+#   "helmet": "^7.1.0",            // HTTP security headers
+#   "morgan": "^1.10.0",           // HTTP request logger
+#   "express-async-errors": "^3.1.1" // Async error propagation in Express routes
+# },
+# "devDependencies": {
+#   "nodemon": "^3.1.3"            // Auto-restart on file changes during development
+# }
+#
+# Quick install command:
+#   npm install express cors dotenv multer axios helmet morgan express-async-errors
+#   npm install --save-dev nodemon
+
+
+# =============================================================================
+# NODE.JS — Svelte Frontend  (/frontend)
+# =============================================================================
+# Install with:  npm install
+# Requires:      Node.js 18+ LTS
+#
+# Scaffold with:
+#   npm create svelte@latest frontend
+#   cd frontend && npm install
+#
+# Add the following to /frontend/package.json under "dependencies":
+# =============================================================================
+#
+# "dependencies": {
+#   "svelte": "^4.2.18"            // Reactive component framework
+# },
+# "devDependencies": {
+#   "@sveltejs/kit": "^2.5.7",     // SvelteKit app framework (routing, SSR)
+#   "@sveltejs/adapter-auto": "^3.2.2", // Auto deployment adapter
+#   "vite": "^5.3.1",              // Build tool and dev server
+#   "svelte-check": "^3.8.4",      // Type-checking for Svelte components
+#   "typescript": "^5.5.2"         // TypeScript support (optional but recommended)
+# }
+#
+# Quick install command:
+#   npm install svelte @sveltejs/kit @sveltejs/adapter-auto vite svelte-check
+
+
+# =============================================================================
+# SYSTEM-LEVEL DEPENDENCIES (install outside of pip/npm)
+# =============================================================================
+#
+# These must be installed at the OS level before running pip install:
+#
+# Tesseract OCR 5.x
+#   macOS:   brew install tesseract tesseract-lang
+#   Ubuntu:  sudo apt install tesseract-ocr tesseract-ocr-eng
+#   Windows: https://github.com/UB-Mannheim/tesseract/wiki
+#
+# Poppler (required by pdf2image for PDF→image conversion)
+#   macOS:   brew install poppler
+#   Ubuntu:  sudo apt install poppler-utils
+#   Windows: https://github.com/oschwartz10612/poppler-windows/releases
+#
+# =============================================================================

@@ -1,0 +1,25 @@
+{
+  "description": "Labelled S2AG result rankings per query. 'relevances' lists graded relevance (0=irrelevant, 1=relevant, 2=highly relevant) in the order the system returned the papers. P@5 and NDCG@5 are computed from these.",
+  "queries": [
+    {
+      "query": "transformer attention mechanism",
+      "relevances": [2, 2, 1, 1, 1, 0, 0, 0, 0, 0]
+    },
+    {
+      "query": "bert language model pretraining",
+      "relevances": [2, 1, 2, 1, 0, 1, 0, 0, 0, 0]
+    },
+    {
+      "query": "deep residual image recognition",
+      "relevances": [2, 2, 2, 0, 1, 0, 0, 0, 0, 0]
+    },
+    {
+      "query": "stochastic gradient optimization",
+      "relevances": [1, 1, 1, 1, 0, 0, 1, 0, 0, 0]
+    },
+    {
+      "query": "word embeddings semantic similarity",
+      "relevances": [2, 1, 0, 1, 1, 0, 0, 0, 0, 0]
+    }
+  ]
+}

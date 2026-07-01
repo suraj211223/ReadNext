@@ -1,0 +1,77 @@
+/**
+ * Client for the Express gateway (instructions.md §6.1).
+ * The browser only ever talks to the gateway at /api/process — never the engine
+ * or S2AG directly, and never sees the API key.
+ */
+
+export class ApiError extends Error {
+  constructor(message, code, status) {
+    super(message);
+    this.name = 'ApiError';
+    this.code = code;
+    this.status = status;
+  }
+}
+
+const ACCEPTED_TYPES = [
+  'application/pdf',
+  'image/png',
+  'image/jpeg',
+  'image/jpg',
+  'image/webp',
+];
+
+/**
+ * Validate a file before upload. Returns an error string, or null if OK.
+ * @param {File} file
+ * @param {number} [maxBytes]
+ */
+export function validateFile(file, maxBytes = 15 * 1024 * 1024) {
+  if (!file) return 'Please choose a PDF or image file.';
+  const okType =
+    ACCEPTED_TYPES.includes(file.type) || /\.(pdf|png|jpe?g|webp)$/i.test(file.name || '');
+  if (!okType) return 'Unsupported file type. Upload a PDF or an image (PNG/JPG/WebP).';
+  if (file.size > maxBytes) return 'File is too large (max 15 MB).';
+  return null;
+}
+
+/**
+ * Upload a file to the gateway and return the ranked recommendations.
+ * @param {File} file
+ * @param {{ maxResults?: number, fetch?: typeof fetch }} [opts]
+ * @returns {Promise<{keyphrases: string[], papers: object[], method?: string, extractor?: string}>}
+ */
+export async function processFile(file, opts = {}) {
+  const { maxResults = 5, fetch: fetchImpl = globalThis.fetch } = opts;
+
+  const validationError = validateFile(file);
+  if (validationError) throw new ApiError(validationError, 'VALIDATION', 400);
+
+  const form = new FormData();
+  form.append('file', file);
+  form.append('maxResults', String(maxResults));
+
+  let resp;
+  try {
+    resp = await fetchImpl('/api/process', { method: 'POST', body: form });
+  } catch (e) {
+    throw new ApiError('Could not reach the server. Is the gateway running?', 'NETWORK', 0);
+  }
+
+  let body = {};
+  try {
+    body = await resp.json();
+  } catch (e) {
+    /* non-JSON body */
+  }
+
+  if (!resp.ok || body.status === 'error') {
+    throw new ApiError(
+      body.message || `Request failed (${resp.status})`,
+      body.code || 'REQUEST_FAILED',
+      resp.status
+    );
+  }
+
+  return body;
+}

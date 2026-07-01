@@ -1,0 +1,43 @@
+# FastAPI Processing Node — Python dependencies
+# Install: pip install -r requirements.txt
+# Requires: Python 3.10+  |  Tesseract 5.x (system-level, for the OCR fallback)
+
+# Web framework
+fastapi==0.111.0
+uvicorn[standard]==0.30.1
+python-multipart==0.0.9
+
+# PDF parsing (PyMuPDF primary, pdfplumber fallback — instructions.md §3)
+pymupdf
+pdfplumber
+pypdf
+
+# OCR & image processing
+# EasyOCR is the spec's primary engine; it is optional here because it lacks
+# wheels on some Python versions. When absent, the pytesseract fallback is used.
+# easyocr
+pytesseract
+Pillow
+pdf2image
+
+# NLP keyword extraction (KeyBERT primary, RAKE fallback)
+keybert
+rake-nltk
+nltk
+sentence-transformers
+
+# NLP text preprocessing
+spacy
+
+# PyTorch backend (sentence-transformers dependency)
+torch
+
+# HTTP client (gateway <-> engine transport)
+httpx
+
+# Config & validation
+pydantic-settings
+python-dotenv
+
+# Testing
+pytest

@@ -1,0 +1,29 @@
+# Environment variables — never commit
+.env
+.env.local
+.env.*.local
+
+# Python
+processing/venv/
+processing/__pycache__/
+processing/**/__pycache__/
+processing/**/*.pyc
+processing/.pytest_cache/
+processing/uploads/*
+!processing/uploads/.gitkeep
+
+# Node
+backend/node_modules/
+frontend/node_modules/
+
+# Svelte / Vite build output
+frontend/.svelte-kit/
+frontend/build/
+frontend/.vite/
+
+# Test / coverage artifacts
+coverage/
+**/coverage/
+
+# OS
+.DS_Store

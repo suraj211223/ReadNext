@@ -1,0 +1,149 @@
+/* =========================================================================
+   Design tokens — Neubrutalism (UI_INSTRUCTIONS §2)
+   Dual-tone: off-white surface + dark-grey ink, swapped in dark mode.
+   Never hardcode a hex outside this block.
+   Fonts are loaded via <link> in app.html (Archivo / Inter / IBM Plex Mono).
+   ========================================================================= */
+:root {
+  /* DUAL-TONE CORE — light mode */
+  --surface: #f4f1ea;
+  --surface-2: #eae6dc;
+  --ink: #2b2b2b;
+  --ink-soft: #4a4a4a;
+ 
+
+  /* ACCENT */
+  --accent: #c6f24e;
+  --accent-ink: #1e1e1e;
+
+  /* SEMANTIC */
+  --card: var(--surface);
+  --card-2: var(--surface-2);
+  --text: var(--ink);
+  --text-muted: var(--ink-soft);
+  --border: var(--ink);
+  
+  /* NEUBRUTALIST PRIMITIVES */
+  --bw: 3px;
+  --radius: 12px;
+  --shadow: 6px 6px 0 0 var(--ink);
+  --shadow-sm: 3px 3px 0 0 var(--ink);
+  --shadow-lg: 10px 10px 0 0 var(--ink);
+  --press: translate(3px, 3px);
+
+  /* MOTION */
+  --ease-snap: cubic-bezier(0.2, 0.9, 0.2, 1);
+  --dur-fast: 120ms;
+  --dur: 260ms;
+  --dur-slow: 520ms;
+
+  /* TYPE */
+  --font-display: 'Archivo', system-ui, sans-serif;
+  --font-body: 'Inter', system-ui, sans-serif;
+  --font-mono: 'IBM Plex Mono', ui-monospace, monospace;
+}
+
+[data-theme='dark'] {
+  --surface: #1f1e1c;
+  --surface-2: #292723;
+  --ink: #f4f1ea;
+  --ink-soft: #c9c5ba;
+
+  --accent: #c6f24e;
+  --accent-ink: #1e1e1e;
+
+  --shadow: 6px 6px 0 0 var(--ink);
+  --shadow-sm: 3px 3px 0 0 var(--ink);
+  --shadow-lg: 10px 10px 0 0 var(--ink);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  margin: 0;
+  background: var(--surface);
+  color: var(--text);
+  font-family: var(--font-body);
+  font-size: 1.0625rem;
+  line-height: 1.6;
+  /* Smooth the dual-tone swap, but let shadows snap (UI_INSTRUCTIONS §11). */
+  transition: background-color var(--dur) var(--ease-snap),
+    color var(--dur) var(--ease-snap);
+  -webkit-font-smoothing: antialiased;
+}
+
+h1,
+h2,
+h3 {
+  font-family: var(--font-display);
+  line-height: 1;
+  margin: 0;
+}
+
+a {
+  color: inherit;
+}
+
+/* Brutalist focus ring (UI_INSTRUCTIONS §12) */
+:focus-visible {
+  outline: 3px solid var(--accent);
+  outline-offset: 3px;
+}
+
+.mono {
+  font-family: var(--font-mono);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  font-size: 0.8rem;
+  font-weight: 500;
+}
+
+.container {
+  width: min(1160px, 92vw);
+  margin-inline: auto;
+}
+
+.band {
+  padding: clamp(3rem, 8vw, 7rem) 0;
+}
+
+.band--alt {
+  background: var(--surface-2);
+}
+
+.section-h2 {
+  font-size: clamp(2rem, 4vw, 3.25rem);
+  font-weight: 800;
+  margin-bottom: 1.5rem;
+}
+
+/* Scroll-reveal (driven by the `reveal` action which toggles `.in-view`).
+   Kept global because the class is added at runtime, outside Svelte's compiler. */
+.reveal-item {
+  opacity: 0;
+  transform: translateY(40px) rotate(-2deg);
+  transition:
+    opacity var(--dur-slow) var(--ease-snap),
+    transform var(--dur-slow) var(--ease-snap);
+}
+.reveal-item.in-view {
+  opacity: 1;
+  transform: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+  * {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+  }
+}
