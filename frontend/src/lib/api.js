@@ -75,3 +75,45 @@ export async function processFile(file, opts = {}) {
 
   return body;
 }
+
+/**
+ * Keyword search via the gateway (chat page). Sends a typed phrase — no file —
+ * and returns up to 5 ranked papers.
+ * @param {string} query
+ * @param {{ maxResults?: number, fetch?: typeof fetch }} [opts]
+ * @returns {Promise<{keyphrases: string[], papers: object[], method?: string}>}
+ */
+export async function searchByKeyword(query, opts = {}) {
+  const { maxResults = 5, fetch: fetchImpl = globalThis.fetch } = opts;
+
+  const q = (query || '').trim();
+  if (!q) throw new ApiError('Enter a keyword or phrase to search for.', 'VALIDATION', 400);
+
+  let resp;
+  try {
+    resp = await fetchImpl('/api/search', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ query: q, maxResults }),
+    });
+  } catch (e) {
+    throw new ApiError('Could not reach the server. Is the gateway running?', 'NETWORK', 0);
+  }
+
+  let body = {};
+  try {
+    body = await resp.json();
+  } catch (e) {
+    /* non-JSON body */
+  }
+
+  if (!resp.ok || body.status === 'error') {
+    throw new ApiError(
+      body.message || `Request failed (${resp.status})`,
+      body.code || 'REQUEST_FAILED',
+      resp.status
+    );
+  }
+
+  return body;
+}

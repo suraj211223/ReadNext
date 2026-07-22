@@ -12,6 +12,11 @@ from functools import lru_cache
 logger = logging.getLogger(__name__)
 
 _WHITESPACE_RE = re.compile(r"\s+")
+# Words split across a line break by PDF layout: "struc-\ntures" -> "structures".
+_DEHYPHEN_RE = re.compile(r"(?<=\w)-\s*\n\s*(?=\w)")
+
+# Parts of speech a good, searchable keyphrase is built from.
+_LEADING_NONCONTENT_POS = {"VERB", "ADV", "ADP", "AUX", "PART", "CCONJ", "SCONJ"}
 
 
 @lru_cache
@@ -35,11 +40,42 @@ def _nlp():
 
 
 def clean_text(text: str) -> str:
-    """Collapse whitespace and strip control noise from raw extracted text."""
+    """Collapse whitespace and strip control noise from raw extracted text.
+
+    Also rejoins words hyphenated across a line break ("struc-\\ntures" ->
+    "structures"); PDF extractors emit these verbatim and they otherwise leak
+    into keyphrases as fragments like "tures" or "tal".
+    """
     if not text:
         return ""
     text = text.replace("\x00", " ")
+    text = _DEHYPHEN_RE.sub("", text)
     return _WHITESPACE_RE.sub(" ", text).strip()
+
+
+def is_content_phrase(phrase: str) -> bool:
+    """Heuristic: keep noun-phrase-like candidates, drop verb/adverb-led filler.
+
+    Statistical extractors (RAKE) happily surface phrases like "take great care"
+    or "positively influence immediate" — grammatical but useless as search
+    terms. We keep a phrase only when it is anchored by a noun, does not lead
+    with a verb/adverb/preposition, and contains no finite verb. POS tagging is
+    done on a lower-cased copy so ALL-CAPS source text doesn't skew the tags.
+
+    If the POS model is unavailable (blank spaCy pipeline), we can't judge and
+    keep the phrase rather than guess.
+    """
+    phrase = (phrase or "").strip()
+    if not phrase:
+        return False
+    tagged = [t for t in _nlp()(phrase.lower()) if t.is_alpha]
+    if not tagged or not any(t.pos_ for t in tagged):
+        return True  # no POS info (blank model) -> don't second-guess
+    if any(t.pos_ == "VERB" for t in tagged):
+        return False
+    if tagged[0].pos_ in _LEADING_NONCONTENT_POS:
+        return False
+    return any(t.pos_ in {"NOUN", "PROPN"} for t in tagged)
 
 
 def filter_stopwords(text: str) -> str:

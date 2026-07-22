@@ -17,7 +17,8 @@
     { href: '#papers', label: 'Community' },
     { href: '#how', label: 'How it works' },
     { href: '#sources', label: 'Sources' },
-    { href: '#demo', label: 'Demo' }
+    { href: '#demo', label: 'Demo' },
+    { href: '/chat', label: 'Chat' }
   ];
 </script>
 

@@ -7,6 +7,7 @@ const helmet = require('helmet');
 const morgan = require('morgan');
 
 const processRoute = require('./routes/process');
+const { rateLimit } = require('./middleware/rateLimit');
 const { notFound, errorHandler } = require('./middleware/error');
 
 /**
@@ -21,6 +22,12 @@ function createApp() {
   if (process.env.NODE_ENV !== 'test') app.use(morgan('dev'));
 
   app.get('/health', (req, res) => res.json({ status: 'ok', service: 'gateway' }));
+
+  // Throttle the API surface so bursts can't overrun Semantic Scholar's own
+  // rate limit. Skipped under tests so the suite isn't slowed/limited.
+  if (process.env.NODE_ENV !== 'test') {
+    app.use('/api', rateLimit({ windowMs: 60 * 1000, max: 20 }));
+  }
 
   app.use('/api', processRoute);
 

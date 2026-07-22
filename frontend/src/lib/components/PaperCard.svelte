@@ -35,7 +35,7 @@
 
   <div class="meta">
     {#if paper.year}<Tag>{paper.year}</Tag>{/if}
-    {#if paper.venue}<Tag>{paper.venue}</Tag>{/if}
+    {#if paper.venue}<Tag wrap>{paper.venue}</Tag>{/if}
     {#if cites}<Tag>{cites}</Tag>{/if}
   </div>
 

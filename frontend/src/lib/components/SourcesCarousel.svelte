@@ -34,6 +34,9 @@
     <p class="mono">Powered by</p>
     <h2 class="section-h2">The stack behind the recommendations</h2>
 
+    <!-- Intentional carousel pattern: the group is focusable so keyboard users can
+         arrow between slides. See ARIA APG carousel guidance. -->
+    <!-- svelte-ignore a11y-no-noninteractive-tabindex a11y-no-noninteractive-element-interactions -->
     <div
       class="carousel"
       role="group"
@@ -153,11 +156,5 @@
   }
   .dot.active {
     background: var(--accent);
-  }
-  .disclaimer {
-    margin-top: 1.25rem;
-    color: var(--text-muted);
-    opacity: 0.8;
-    font-size: 0.7rem;
   }
 </style>

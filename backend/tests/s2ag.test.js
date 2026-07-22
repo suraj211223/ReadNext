@@ -75,12 +75,32 @@ describe('s2ag service', () => {
       expect(papers[0].paperId).toBe('x');
     });
 
-    it('maps 429 to a rate-limit error', async () => {
-      nock(BASE).get('/paper/search').query(true).reply(429, {});
+    it('maps a persistent 429 to a rate-limit error after exhausting retries', async () => {
+      // Retry-After: 0 keeps the retries instant so the test stays fast.
+      nock(BASE)
+        .get('/paper/search')
+        .query(true)
+        .times(4) // initial call + 3 retries
+        .reply(429, {}, { 'Retry-After': '0' });
       await expect(s2ag.searchPapers(['nlp'], 5)).rejects.toMatchObject({
         status: 429,
         code: 'S2AG_SEARCH_FAILED',
       });
+    });
+
+    it('retries a transient 429 and succeeds', async () => {
+      const scope = nock(BASE)
+        .get('/paper/search')
+        .query(true)
+        .reply(429, {}, { 'Retry-After': '0' }) // first attempt: rate-limited
+        .get('/paper/search')
+        .query(true)
+        .reply(200, { data: [{ paperId: 'r1', title: 'Recovered' }] }); // retry: ok
+
+      const { papers } = await s2ag.searchPapers(['transient limit'], 5);
+      expect(papers).toHaveLength(1);
+      expect(papers[0].title).toBe('Recovered');
+      expect(scope.isDone()).toBe(true); // both interceptors consumed
     });
 
     it('caches identical queries (one upstream call)', async () => {

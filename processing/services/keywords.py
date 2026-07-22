@@ -14,7 +14,7 @@ from functools import lru_cache
 from typing import List, Tuple
 
 from config import get_settings
-from utils.preprocess import clean_text, content_tokens
+from utils.preprocess import clean_text, content_tokens, is_content_phrase
 
 logger = logging.getLogger(__name__)
 
@@ -80,6 +80,17 @@ def _clamp(phrases: List[str], lo: int, hi: int) -> List[str]:
     return phrases[:hi] if len(phrases) >= lo else phrases
 
 
+def _normalize(phrases: List[str]) -> List[str]:
+    """Lower-case and collapse internal whitespace so downstream queries and the
+    UI never show ALL-CAPS/ragged phrases (e.g. from uppercase PDF regions)."""
+    out: List[str] = []
+    for p in phrases:
+        norm = " ".join(str(p).lower().split())
+        if norm:
+            out.append(norm)
+    return out
+
+
 # --------------------------------------------------------------------------- #
 # Extractors
 # --------------------------------------------------------------------------- #
@@ -133,19 +144,28 @@ def extract_keyphrases(text: str) -> Tuple[List[str], str]:
 
     long_text = len(cleaned) > s.rake_char_threshold
     extractor = "keybert"
+    # Over-fetch: the content-phrase filter below discards junk candidates, so we
+    # need a deeper pool to still land 5–7 good phrases.
+    pool_n = s.max_keywords * 3
     phrases: List[str] = []
 
     if not long_text and _keybert_model() is not None:
         try:
-            phrases = keybert_keyphrases(cleaned, top_n=s.max_keywords + 3)
+            phrases = keybert_keyphrases(cleaned, top_n=pool_n)
         except Exception as exc:  # noqa: BLE001
             logger.warning("KeyBERT extraction failed (%s); using RAKE", exc)
             phrases = []
 
     if not phrases:
         extractor = "rake"
-        phrases = rake_keyphrases(cleaned, top_n=s.max_keywords + 3)
+        phrases = rake_keyphrases(cleaned, top_n=pool_n)
 
-    phrases = _dedupe(phrases)
-    phrases = _clamp(phrases, s.min_keywords, s.max_keywords)
-    return phrases, extractor
+    phrases = _normalize(phrases)
+    # Prefer noun-phrase-like candidates; keep the rejects as backfill so we
+    # never starve below min_keywords when the filter is aggressive.
+    kept = [p for p in phrases if is_content_phrase(p)]
+    ordered = kept + [p for p in phrases if p not in kept]
+
+    ordered = _dedupe(ordered)
+    ordered = _clamp(ordered, s.min_keywords, s.max_keywords)
+    return ordered, extractor

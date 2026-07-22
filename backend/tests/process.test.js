@@ -105,6 +105,33 @@ describe('POST /api/process', () => {
     expect(Number(capturedLimit)).toBeLessThanOrEqual(config.s2ag.defaultLimit);
   });
 
+  it('searches S2AG with individual content words, but returns the full phrases', async () => {
+    const many = [
+      'reticular collagen network',
+      'radiopaque dye injected',
+      'the great care', // stop-words ("the", "great") must be dropped
+    ];
+    mockEngine(many);
+    let capturedQuery;
+    nock(S2AG)
+      .get('/paper/search')
+      .query((q) => {
+        capturedQuery = q.query;
+        return true;
+      })
+      .reply(200, { data: [] });
+
+    const res = await request(app)
+      .post('/api/process')
+      .attach('file', PDF_BYTES, { filename: 'p.pdf', contentType: 'application/pdf' });
+
+    // Phrases are flattened to deduped, lower-cased content words (max 6);
+    // stop-words like "the"/"great" and duplicates are stripped.
+    expect(capturedQuery).toBe('reticular collagen network radiopaque dye injected');
+    // ...yet the full phrase set is still surfaced to the client for display.
+    expect(res.body.keyphrases).toEqual(many);
+  });
+
   it('health endpoint responds', async () => {
     const res = await request(app).get('/health');
     expect(res.status).toBe(200);

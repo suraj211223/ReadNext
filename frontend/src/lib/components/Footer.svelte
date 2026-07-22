@@ -57,11 +57,18 @@
 </footer>
 
 <style>
-  /* High-contrast close: force dark band even in light mode (UI §9.2). */
+  /* High-contrast close: force dark band even in light mode (UI §9.2).
+     Re-map the ink-derived tokens to the cream band colour so children
+     (the CTA button) render light-on-dark in light mode too — otherwise
+     their offset "back" shadow is a dark ink that vanishes on the band. */
   .footer {
+    --border: #f4f1ea;
+    --shadow: 6px 6px 0 0 #f4f1ea;
+    --shadow-sm: 3px 3px 0 0 #f4f1ea;
+    --shadow-lg: 10px 10px 0 0 #f4f1ea;
     background: #1f1e1c;
     color: #f4f1ea;
-    border-top: var(--bw) solid var(--ink);
+    border-top: var(--bw) solid #f4f1ea;
     padding: clamp(3rem, 7vw, 5rem) 0 2rem;
   }
   .top {
@@ -124,16 +131,6 @@
   }
   .thanks {
     color: #c6f24e;
-  }
-  .strip {
-    display: flex;
-    justify-content: space-between;
-    gap: 1rem;
-    flex-wrap: wrap;
-    border-top: 2px solid #4a4a4a;
-    padding-top: 1.5rem;
-    opacity: 0.75;
-    font-size: 0.7rem;
   }
   @media (max-width: 760px) {
     .top {
