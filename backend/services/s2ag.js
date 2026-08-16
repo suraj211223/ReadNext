@@ -42,6 +42,25 @@ function buildQuery(keyphrases) {
 }
 
 /**
+ * Build S2AG's `year` filter param from an inclusive [min, max] range.
+ * S2AG accepts `2019`, `2016-2020`, `2015-` (min only) and `-2020` (max only).
+ * Returns '' when neither bound is a valid year, so the caller can omit the param.
+ * The range is inclusive on both ends (task §12 Year dimension).
+ *
+ * @param {number|string|null} [min]
+ * @param {number|string|null} [max]
+ * @returns {string}
+ */
+function buildYearParam(min, max) {
+  const lo = Number.isFinite(+min) && min !== '' && min != null ? Math.trunc(+min) : null;
+  const hi = Number.isFinite(+max) && max !== '' && max != null ? Math.trunc(+max) : null;
+  if (lo != null && hi != null) return lo === hi ? `${lo}` : `${Math.min(lo, hi)}-${Math.max(lo, hi)}`;
+  if (lo != null) return `${lo}-`;
+  if (hi != null) return `-${hi}`;
+  return '';
+}
+
+/**
  * Normalise a raw S2AG paper object to the response schema (instructions.md §6.1).
  */
 function normalizePaper(p) {
@@ -64,32 +83,46 @@ function normalizePaper(p) {
  *
  * @param {string[]} keyphrases
  * @param {number}   limit
+ * @param {{ year?: string }} [opts] server-side filters pushed to S2AG. `year`
+ *        is an S2AG range string (see buildYearParam) applied at retrieval time.
  * @returns {Promise<{query: string, papers: object[]}>}
  */
-async function searchPapers(keyphrases, limit = config.s2ag.defaultLimit) {
+async function searchPapers(keyphrases, limit = config.s2ag.defaultLimit, opts = {}) {
   const query = buildQuery(keyphrases);
   if (!query) return { query: '', papers: [] };
 
-  const cacheKey = `${query}::${limit}`;
+  const year = typeof opts.year === 'string' ? opts.year.trim() : '';
+
+  // Year is part of the cache key: the same query with a different year window
+  // is a genuinely different result set (task §12 — retrieval respects filters).
+  const cacheKey = `${query}::${limit}::${year}`;
   const cached = cache.get(cacheKey);
   if (cached) return cached;
 
   const headers = {};
   if (config.s2ag.apiKey) headers['x-api-key'] = config.s2ag.apiKey;
 
+  const params = { query, fields: config.s2ag.fields, limit };
+  if (year) params.year = year;
+
   let resp;
   for (let attempt = 0; ; attempt++) {
     try {
       resp = await axios.get(`${config.s2ag.baseUrl}/paper/search`, {
-        params: { query, fields: config.s2ag.fields, limit },
+        params,
         headers,
         timeout: 20000,
       });
       break;
     } catch (err) {
       const status = err.response?.status;
-      // Transient (rate-limit / upstream) failures: back off and try again.
-      if (status != null && isRetriableStatus(status) && attempt < RETRY_ATTEMPTS) {
+      // Transient failures worth retrying: a rate-limit / upstream 5xx that came
+      // back with a status, OR a connection-level error with no response at all
+      // (DNS blip, socket reset, timeout) — the latter is the *most* retriable
+      // kind, so back off and try again in both cases.
+      const noResponse = err.response == null && err.code !== 'ERR_CANCELED';
+      const retriable = noResponse || (status != null && isRetriableStatus(status));
+      if (retriable && attempt < RETRY_ATTEMPTS) {
         await sleep(retryDelayMs(err, attempt));
         continue;
       }
@@ -117,4 +150,4 @@ async function searchPapers(keyphrases, limit = config.s2ag.defaultLimit) {
   return cache.set(cacheKey, { query, papers });
 }
 
-module.exports = { searchPapers, buildQuery, normalizePaper, _cache: cache };
+module.exports = { searchPapers, buildQuery, buildYearParam, normalizePaper, _cache: cache };

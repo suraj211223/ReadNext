@@ -27,3 +27,8 @@ coverage/
 
 # OS
 .DS_Store
+
+#diary
+work_diary.md
+UI_INSTRUCTIONS.md
+instructions.md

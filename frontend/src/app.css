@@ -26,10 +26,18 @@
   /* NEUBRUTALIST PRIMITIVES */
   --bw: 3px;
   --radius: 12px;
+  /* Concentric nesting: inner controls sit one step tighter than their parent
+     card so radii stay geometrically proportional. */
+  --radius-sm: 8px;
+  --radius-pill: 999px;
   --shadow: 6px 6px 0 0 var(--ink);
   --shadow-sm: 3px 3px 0 0 var(--ink);
   --shadow-lg: 10px 10px 0 0 var(--ink);
+  /* Pressed-pill shadow — a tighter offset so pills feel physically pushed in. */
+  --shadow-pressed: 1px 1px 0 0 var(--ink);
   --press: translate(3px, 3px);
+  --press-pill: translate(2px, 2px);
+  --border-dash: 2px dashed var(--border);
 
   /* MOTION */
   --ease-snap: cubic-bezier(0.2, 0.9, 0.2, 1);

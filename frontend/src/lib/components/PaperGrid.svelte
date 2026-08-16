@@ -2,11 +2,13 @@
   import PaperCard from './PaperCard.svelte';
   /** @type {object[]} */
   export let papers = [];
+  /** Forwarded to each card: show the hide ("⋯") menu on results. */
+  export let hideable = false;
 </script>
 
 <div class="grid">
   {#each papers as paper (paper.paperId || paper.title)}
-    <PaperCard {paper} />
+    <PaperCard {paper} {hideable} />
   {/each}
 </div>
 

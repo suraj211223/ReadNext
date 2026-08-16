@@ -5,7 +5,7 @@ const multer = require('multer');
 
 const config = require('../config');
 const { extractKeyphrases } = require('../services/engine');
-const { searchPapers } = require('../services/s2ag');
+const { searchPapers, buildYearParam } = require('../services/s2ag');
 
 const router = express.Router();
 
@@ -89,6 +89,10 @@ router.post('/process', upload.single('file'), async (req, res) => {
 
   const { buffer, originalname, mimetype } = req.file;
 
+  // Year is the one filter dimension applied at retrieval time (task §12). The
+  // author/publisher dimensions are applied client-side on the returned set.
+  const year = buildYearParam(req.body.yearMin, req.body.yearMax);
+
   // 1) Extract unified text + keyphrases from the internal engine.
   const extraction = await extractKeyphrases(buffer, originalname, mimetype);
   const keyphrases = extraction.keyphrases || [];
@@ -96,7 +100,7 @@ router.post('/process', upload.single('file'), async (req, res) => {
   // 2) Query Semantic Scholar with the gateway-held key. We search with the top
   // individual content words (not the long phrases); the full keyphrase set is
   // still returned below for display.
-  const { query, papers } = await searchPapers(queryWords(keyphrases), maxResults);
+  const { query, papers } = await searchPapers(queryWords(keyphrases), maxResults, { year });
 
   // 3) Shape the public response (instructions.md §6.1).
   return res.json({
@@ -136,12 +140,24 @@ router.post('/search', express.json(), async (req, res) => {
     SEARCH_MAX_RESULTS
   );
 
-  // The user's typed phrase is treated as a single keyphrase for S2AG.
-  const { query: usedQuery, papers } = await searchPapers([query], maxResults);
+  // Year filter (task §12) is pushed into the S2AG query; author/publisher are
+  // applied client-side on the result set.
+  const year = buildYearParam(req.body.yearMin, req.body.yearMax);
+
+  // A comma is an explicit term separator: "heart,stenosis" is treated as two
+  // distinct search terms rather than one literal token. We split on commas,
+  // trim, and drop empties; a plain phrase (no comma) stays a single term.
+  const terms = query
+    .split(',')
+    .map((t) => t.trim())
+    .filter(Boolean);
+  const searchTerms = terms.length ? terms : [query];
+
+  const { query: usedQuery, papers } = await searchPapers(searchTerms, maxResults, { year });
 
   return res.json({
     status: 'success',
-    keyphrases: [query],
+    keyphrases: searchTerms,
     query: usedQuery,
     method: 'keyword',
     total_results: papers.length,

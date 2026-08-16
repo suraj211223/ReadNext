@@ -1,10 +1,21 @@
 <script>
-  import { tick } from 'svelte';
+  import { tick, onMount } from 'svelte';
+  import { get } from 'svelte/store';
   import Button from '$lib/components/Button.svelte';
   import PaperGrid from '$lib/components/PaperGrid.svelte';
   import Tag from '$lib/components/Tag.svelte';
   import ThemeToggle from '$lib/components/ThemeToggle.svelte';
   import { searchByKeyword, processFile, validateFile, ApiError } from '$lib/api';
+  import { filters, filtersActive } from '$lib/filters/store.js';
+  import { applyFilters, hasActiveFilters } from '$lib/filters/applyFilters.js';
+  import { deriveFacets } from '$lib/filters/facets.js';
+  import { initUrlSync } from '$lib/filters/urlSync.js';
+  import FilterPanel from '$lib/filters/components/FilterPanel.svelte';
+  import ActiveFilterChips from '$lib/filters/components/ActiveFilterChips.svelte';
+  import { hidden } from '$lib/hidden/store.js';
+  import { applyHidden } from '$lib/hidden/applyHidden.js';
+  import HiddenManager from '$lib/hidden/HiddenManager.svelte';
+  import Toast from '$lib/ui/Toast.svelte';
 
   // Results are hard-capped at 5 to stay well under Semantic Scholar's rate limit.
   const MAX_RESULTS = 5;
@@ -12,7 +23,7 @@
   // overcalling the API on top of the gateway's own rate limiter.
   const COOLDOWN_MS = 4000;
 
-  /** @type {{ id:number, role:'user'|'bot', kind:'text'|'result'|'error', text?:string, file?:string, result?:any }[]} */
+  /** @type {{ id:number, role:'user'|'bot', kind:'text'|'result'|'error', text?:string, file?:string, keyphrases?:string[], rawPapers?:any[] }[]} */
   let messages = [
     {
       id: 0,
@@ -31,11 +42,31 @@
   let thread; // scroll container
   let nextId = 1;
 
+  // The most recent search's unfiltered result set. It seeds the facet lists and
+  // the live "showing X of Y" count. Author/publisher filters are applied on top
+  // of this client-side; the year filter is already honoured server-side.
+  let lastRawPapers = [];
+  let hasSearched = false;
+  $: facets = deriveFacets(lastRawPapers);
+  // The live count reflects BOTH the active filters and the personal hidden list,
+  // so "Showing X of Y" matches exactly what the grid renders.
+  $: matched = applyHidden(applyFilters(lastRawPapers, $filters), $hidden).length;
+  $: total = lastRawPapers.length;
+
   // Tick a clock so the cooldown countdown updates.
   setInterval(() => (now = Date.now()), 250);
   $: cooling = now < cooldownUntil;
   $: cooldownLeft = Math.max(0, Math.ceil((cooldownUntil - now) / 1000));
   $: canSend = !sending && !cooling && (input.trim().length > 0 || !!file);
+
+  onMount(() => {
+    // Restore filters from the URL and keep the URL in sync from here on, so the
+    // filtered view survives a reload and is shareable (task §12). Filter changes
+    // update the live "showing X of Y" count in the panel — they are intentionally
+    // NOT logged into the chat thread.
+    const unsyncUrl = initUrlSync(filters);
+    return unsyncUrl;
+  });
 
   function pickFile(e) {
     error = '';
@@ -87,13 +118,22 @@
     messages = [...messages, { id: thinkingId, role: 'bot', kind: 'text', text: '…' }];
     await scrollToEnd();
 
+    // Snapshot the active filters so the request carries the exact subset the
+    // answer is attributed to (task §12). Year is applied server-side; author /
+    // publisher are applied to the returned set below.
+    const activeFilters = { ...get(filters) };
+
     try {
       const result = hasFile
-        ? await processFile(sentFile, { maxResults: MAX_RESULTS })
-        : await searchByKeyword(text, { maxResults: MAX_RESULTS });
+        ? await processFile(sentFile, { maxResults: MAX_RESULTS, filters: activeFilters })
+        : await searchByKeyword(text, { maxResults: MAX_RESULTS, filters: activeFilters });
+
+      const raw = Array.isArray(result.papers) ? result.papers : [];
+      lastRawPapers = raw;
+      hasSearched = true;
 
       messages = messages.filter((m) => m.id !== thinkingId);
-      push({ role: 'bot', kind: 'result', result });
+      push({ role: 'bot', kind: 'result', keyphrases: result.keyphrases, rawPapers: raw });
     } catch (e) {
       messages = messages.filter((m) => m.id !== thinkingId);
       push({
@@ -126,44 +166,56 @@
       <span>ReadNext</span>
     </a>
     <div class="top-actions">
-      <span class="mono badge">Max {MAX_RESULTS} / query</span>
+      <span class="mono badge">Max {MAX_RESULTS} / Query</span>
       <ThemeToggle />
     </div>
   </header>
 
   <main class="chat">
+    <div class="main-col">
     <div class="thread" bind:this={thread} aria-live="polite">
       {#each messages as m (m.id)}
         <div class="row" class:me={m.role === 'user'}>
-          <div
-            class="bubble"
-            class:me={m.role === 'user'}
-            class:err={m.kind === 'error'}
-            class:result={m.kind === 'result'}
-          >
-            {#if m.kind === 'text' || m.kind === 'error'}
-              {#if m.file}
-                <span class="file-chip">📎 {m.file}</span>
+            <div
+              class="bubble"
+              class:me={m.role === 'user'}
+              class:err={m.kind === 'error'}
+              class:result={m.kind === 'result'}
+            >
+              {#if m.kind === 'text' || m.kind === 'error'}
+                {#if m.file}
+                  <span class="file-chip">📎 {m.file}</span>
+                {/if}
+                {#if m.text}<p class="bubble-text">{m.text}</p>{/if}
+              {:else if m.kind === 'result'}
+                {@const shown = applyHidden(applyFilters(m.rawPapers || [], $filters), $hidden)}
+                {#if m.keyphrases?.length}
+                  <div class="keyphrases">
+                    <span class="mono">Keywords:</span>
+                    {#each m.keyphrases as kp}
+                      <Tag variant="filled">{kp}</Tag>
+                    {/each}
+                  </div>
+                {/if}
+                {#if (m.rawPapers?.length ?? 0) === 0}
+                  <p class="bubble-text">No matching papers found. Try a different keyword.</p>
+                {:else if shown.length === 0}
+                  <!-- Raw set was non-empty but filters removed everything: never
+                       silently fall back to the unfiltered corpus (task §12). -->
+                  <div class="empty-filter">
+                    <p class="bubble-text">No papers match these filters.</p>
+                    <Button on:click={() => filters.clear()}>Clear all filters</Button>
+                  </div>
+                {:else}
+                  <p class="bubble-text">
+                    Here are your {shown.length} paper(s){#if hasActiveFilters($filters)}
+                      of {m.rawPapers?.length}{/if}:
+                  </p>
+                  <PaperGrid papers={shown} hideable />
+                {/if}
               {/if}
-              {#if m.text}<p class="bubble-text">{m.text}</p>{/if}
-            {:else if m.kind === 'result'}
-              {#if m.result.keyphrases?.length}
-                <div class="keyphrases">
-                  <span class="mono">Keywords:</span>
-                  {#each m.result.keyphrases as kp}
-                    <Tag variant="filled">{kp}</Tag>
-                  {/each}
-                </div>
-              {/if}
-              {#if m.result.papers?.length}
-                <p class="bubble-text">Here are your {m.result.papers.length} paper(s):</p>
-                <PaperGrid papers={m.result.papers} />
-              {:else}
-                <p class="bubble-text">No matching papers found. Try a different keyword.</p>
-              {/if}
-            {/if}
+            </div>
           </div>
-        </div>
       {/each}
     </div>
 
@@ -172,6 +224,11 @@
     {/if}
 
     <form class="composer" on:submit|preventDefault={send}>
+      {#if $filtersActive}
+        <div class="filter-chips">
+          <ActiveFilterChips />
+        </div>
+      {/if}
       {#if file}
         <div class="attached">
           <span class="file-chip">📎 {file.name}</span>
@@ -201,8 +258,16 @@
         Enter to send · Shift+Enter for a new line · rate-limited to protect the Semantic Scholar API
       </p>
     </form>
+    </div>
+
+    <aside class="sidebar">
+      <FilterPanel {facets} {matched} {total} hasResults={hasSearched} />
+      <HiddenManager />
+    </aside>
   </main>
 </div>
+
+<Toast />
 
 <style>
   .page {
@@ -242,10 +307,13 @@
   }
   .badge {
     border: 2px solid var(--border);
-    border-radius: 999px;
-    padding: 0.25rem 0.7rem;
+    border-radius: var(--radius-pill);
+    /* +4px horizontal breathing room so the text never touches the border. */
+    padding: 0.25rem calc(0.7rem + 4px);
     background: var(--accent);
     color: var(--accent-ink);
+    text-transform: none;
+    letter-spacing: 0.02em;
   }
 
   .chat {
@@ -253,9 +321,39 @@
     width: min(1180px, 96vw);
     margin-inline: auto;
     display: flex;
-    flex-direction: column;
+    flex-direction: row;
+    align-items: flex-start;
     padding: 1.25rem 0;
     gap: 1rem;
+  }
+  /* Left column: the conversation thread + composer. */
+  .main-col {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+  }
+  /* Right column: the vertical filter sidebar, sticky so it stays in view as
+     the thread scrolls. */
+  .sidebar {
+    flex: none;
+    width: 300px;
+    position: sticky;
+    top: calc(1.25rem + 56px);
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+  }
+  /* Stack the sidebar under the chat on narrow screens. */
+  @media (max-width: 820px) {
+    .chat {
+      flex-direction: column-reverse;
+    }
+    .sidebar {
+      width: 100%;
+      position: static;
+    }
   }
   .thread {
     flex: 1;
@@ -320,7 +418,20 @@
     margin-bottom: 0.75rem;
   }
   .keyphrases .mono {
-    color: var(--text-muted);
+    color: var(--text);
+    text-transform: none;
+    letter-spacing: 0;
+    font-size: 0.9rem;
+  }
+
+  .empty-filter {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.5rem;
+  }
+  .filter-chips {
+    margin-bottom: 0.6rem;
   }
 
   .error {
@@ -368,14 +479,23 @@
     height: 48px;
     flex: none;
     border: var(--bw) solid var(--border);
-    border-radius: var(--radius);
+    /* Nested one step tighter than the composer (var(--radius)) so the icon
+       container stays concentric with its parent. */
+    border-radius: var(--radius-sm);
     background: var(--card);
     box-shadow: var(--shadow-sm);
     cursor: pointer;
     font-size: 1.25rem;
+    transition:
+      transform var(--dur-fast) var(--ease-snap),
+      box-shadow var(--dur-fast) var(--ease-snap);
   }
   .attach:hover {
     transform: translate(-1px, -1px);
+  }
+  .attach:active {
+    transform: var(--press-pill);
+    box-shadow: var(--shadow-pressed);
   }
   .attach input {
     display: none;
@@ -385,7 +505,7 @@
     resize: none;
     max-height: 160px;
     border: var(--bw) solid var(--border);
-    border-radius: var(--radius);
+    border-radius: var(--radius-sm);
     background: var(--surface);
     color: var(--text);
     font-family: var(--font-body);
@@ -394,7 +514,9 @@
     padding: 0.7rem 0.85rem;
   }
   .hint {
-    color: var(--text-muted);
+    /* Rate-limit caption — higher contrast and one step larger for legibility. */
+    color: var(--text);
+    font-size: 0.9rem;
     margin: 0.6rem 0 0;
     text-transform: none;
     letter-spacing: 0;
